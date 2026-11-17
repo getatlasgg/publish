@@ -1,0 +1,53 @@
+name: Atlas publish
+description: Publish template versions to an Atlas panel from a release.
+branding:
+  icon: upload-cloud
+  color: green
+inputs:
+  panel:
+    description: The panel's https address, such as https://panel.example.net.
+    required: true
+  token:
+    description: A publish token from the panel's Settings, People, Tokens.
+    required: true
+  files:
+    description: One template:path = file entry per line.
+    required: true
+  tag:
+    description: The release tag. A tag with a dash before any + opens drafts instead of publishing.
+    default: ${{ github.ref_name }}
+  link:
+    description: Where the release came from.
+    default: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+  draft:
+    description: Open a draft per template even for a stable tag.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Install atlas
+      shell: bash
+      run: |
+        curl -fsSL https://getatlas.gg/cli | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+    - name: Publish
+      shell: bash
+      env:
+        ATLAS_PANEL: ${{ inputs.panel }}
+        ATLAS_TOKEN: ${{ inputs.token }}
+        ATLAS_FILES: ${{ inputs.files }}
+        ATLAS_TAG: ${{ inputs.tag }}
+        ATLAS_LINK: ${{ inputs.link }}
+        ATLAS_DRAFT: ${{ inputs.draft }}
+      run: |
+        arguments=("$ATLAS_TAG" --link "$ATLAS_LINK")
+        if [ "$ATLAS_DRAFT" = "true" ]; then
+          arguments+=(--draft)
+        fi
+        while IFS= read -r line; do
+          line="${line#"${line%%[![:space:]]*}"}"
+          if [ -n "$line" ]; then
+            arguments+=("$line")
+          fi
+        done <<< "$ATLAS_FILES"
+        atlas publish "${arguments[@]}"
